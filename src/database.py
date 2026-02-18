@@ -2,8 +2,10 @@ import sqlite3
 import json
 import os
 
-DB_PATH = 'patients.db'
-MEDICINES_DATA_PATH = os.path.join('data', 'medicines.json')
+# Use absolute path relative to project root
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DB_PATH = os.path.join(BASE_DIR, 'instance', 'health_system.db')
+MEDICINES_DATA_PATH = os.path.join(BASE_DIR, 'app', 'data', 'medicines.json')
 
 def init_db():
     """

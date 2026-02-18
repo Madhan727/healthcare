@@ -3,10 +3,24 @@ def calculate_symptom_score(symptoms):
     Calculates a score based on symptom severity and duration.
     symptoms: list of dicts [{"name": "headache", "severity": 1-5, "duration": 3}]
     """
-    score = 0
+    if not symptoms:
+        return 0.0
+        
+    total_severity = 0
+    # Weights: Severity (1-5) * DurationFactor
     for s in symptoms:
-        score += s.get('severity', 0) * (1 + (s.get('duration', 0) / 10)) # simple duration weight
-    return min(score / 50.0, 1.0) # Normalize to 0-1 (assuming max cumulative severity is rare)
+        total_severity += s.get('severity', 0)
+        
+    # Strictness: To get high risk (1.0), need significant evidence.
+    # E.g., 3 symptoms of severity 4+ = 12 points.
+    # Logic: Score = (Total Severity / 15) * Confidence
+    # If only 1 symptom, confidence is low (0.5). If >=3, confidence is high (1.0).
+    
+    count = len(symptoms)
+    confidence = 1.0 if count >= 3 else (0.5 if count == 1 else 0.8)
+    
+    normalized = (total_severity / 20.0) * confidence
+    return min(normalized, 0.95)
 
 def check_drug_interactions(medicines, symptoms):
     """

@@ -99,34 +99,52 @@ def analyze_risk():
     medicines = data.get('medicines', [])
     symptoms = data.get('symptoms', [])
     
-    # Logic similar to before but with enhanced data available
-    # Medicines might now be objects with 'name'
+    # Medicines might be objects with 'name'
     med_names = [m['name'] if isinstance(m, dict) else m for m in medicines]
     
-    # 1. ML Risk
-    user_features = [60, 1, 0, 140, 240, 0, 1, 150, 0, 1.5, 1, 0, 2] # Mock profile
+    # 1. ML Risk Automation (13 features for UCI Model)
+    # [age, sex, cp, trestbps, chol, fbs, restecg, thalach, exang, oldpeak, slope, ca, thal]
+    base_age = 50 * 365
+    base_ap_hi = 120
+    base_cholesterol = 1
+    
+    # Adjust based on medicines
+    disease_map = get_disease_map()
+    inferred_conditions = set()
+    for m in med_names:
+        if m in disease_map:
+            inferred_conditions.add(disease_map[m])
+            
+    sex = 1 # Male
+    cp = 0 
+    fbs = 0 
+    thalach = 150 
+    exang = 0
+    
+    if "Hypertension" in inferred_conditions:
+        base_ap_hi = 150
+        cp = 1 
+    if "Diabetes" in inferred_conditions:
+        fbs = 1 
+    
+    user_features = [
+        int(base_age / 365),
+        sex, cp, base_ap_hi, base_cholesterol, fbs, 0, thalach, exang, 0.0, 1, 0, 2
+    ]
+    
     ml_risk_prob = predict_risk(user_features)
     
-    # 2. Symptom Score
+    # 2. Symptom Score (Tuned strictness)
     symptom_score = calculate_symptom_score(symptoms)
     
     # 3. Alerts
-    # We can use the info we fetched earlier if passed back, or re-check interactions
     alerts = check_drug_interactions(med_names, symptoms)
     
     # 4. Aggregation
-    disease_map = get_disease_map()
-    chronic_count = 0
-    inferred = set()
-    for m in med_names:
-        if m in disease_map:
-            inferred.add(disease_map[m])
-    chronic_count = len(inferred)
+    chronic_count = len(inferred_conditions)
     
     # 5. Predictive Symptom Analysis (History Check)
-    # Check if user has had same symptoms recently or if symptoms match inferred disease (Validation)
     history_alerts = []
-    
     # Check for chronic symptoms (appearing in last 3 records)
     recent_records = PatientRecord.query.filter_by(user_id=current_user.id).order_by(PatientRecord.date_created.desc()).limit(3).all()
     
@@ -135,9 +153,8 @@ def analyze_risk():
     for s_name in current_symptom_names:
         count = 0
         for record in recent_records:
-            if record.symptoms:
+            if hasattr(record, 'symptoms') and record.symptoms:
                 hist_symptoms = json.loads(record.symptoms) 
-                # hist_symptoms is list of dicts
                 if any(hs['name'].lower() == s_name for hs in hist_symptoms):
                     count += 1
         
@@ -145,34 +162,29 @@ def analyze_risk():
              history_alerts.append(f"Chronic Alert: '{s_name}' has persisted over recent visits.")
              
     # Notification: Match Symptom to Inferred Disease
-    # Example: Diabetes (Metaformin) causes "fatigue" or "thirst"
-    # We can add a simple map here or use an external one.
-    # For demo, hardcode common correlations.
     disease_symptom_map = {
         "Diabetes": ["thirst", "fatigue", "urination", "hunger", "vision"],
         "Hypertension": ["headache", "dizziness", "vision", "chest pain"],
         "Hyperlipidemia": ["chest pain", "faint"]
     }
     
-    for disease in inferred:
+    for disease in inferred_conditions:
         possible_symptoms = disease_symptom_map.get(disease, [])
         for ps in possible_symptoms:
-            if ps in current_symptom_names: # Fuzzy match ideal, but exact substring ok
+            if ps in current_symptom_names:
                  history_alerts.append(f"Insight: '{ps}' is a common symptom of {disease}. Consult doctor for management.")
                  
     # Add history alerts to final report
     alerts.extend(history_alerts)
-
     report = aggregate_risk(ml_risk_prob, symptom_score, chronic_count, alerts)
     
     # Save to User's Record
-    import json
     new_record = PatientRecord(
         user_id=current_user.id,
-        patient_name=current_user.name, # Or separate patient field
+        patient_name=current_user.name,
         medicines=json.dumps(medicines),
-        diseases=json.dumps(list(inferred)),
-        symptoms=json.dumps(symptoms), # Save symptoms
+        diseases=json.dumps(list(inferred_conditions)),
+        symptoms=json.dumps(symptoms),
         risk_score=report['risk_percentage'],
         risk_class=report['classification']
     )

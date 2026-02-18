@@ -68,26 +68,46 @@ def parse_prescription(text):
     except Exception:
         pass
 
-    # Simple keyword matching for demo
-    words = text.split()
-    for i, word in enumerate(words):
-        # Clean word
-        clean_word = re.sub(r'[^a-zA-Z]', '', word)
-        
-        # Check against known medicines (case-insensitive for robustness)
-        match = next((m for m in known_medicines if m.lower() == clean_word.lower()), None)
-        
-        if match:
-            # Look ahead for dosage and frequency
-            context = " ".join(words[i:i+5]) # simple window
+    # fuzzy logic for better detection
+    from fuzzywuzzy import process
+    
+    # Split text into lines to maintain some context
+    lines = text.split('\n')
+    # If single line, split by spaces but keep chunks
+    if len(lines) < 2:
+        lines = [text]
+
+    for line in lines:
+        # Split by non-alphanumeric to handle "Metforrr500mg" or "Metformin-500"
+        words = re.split(r'[^a-zA-Z0-9]+', line)
+        # Sliding window for multi-word medicines (e.g. "Metformin HCL")
+        for i in range(len(words)):
+            # Check single word
+            word = words[i]
+            # Check 2-word phrase
+            phrase = " ".join(words[i:i+2]) if i+1 < len(words) else ""
             
-            dosage = dosage_pattern.search(context)
-            freq = freq_pattern.search(context)
+            candidates = [word]
+            if phrase: candidates.append(phrase)
             
-            medicines.append({
-                "name": match,
-                "dosage": dosage.group(0) if dosage else "Unknown",
-                "frequency": freq.group(0) if freq else "Unknown"
-            })
-            
+            for cand in candidates:
+                # Clean candidate
+                clean_cand = re.sub(r'[^a-zA-Z\s]', '', cand).strip()
+                if len(clean_cand) < 3: continue
+                
+                # Loose Fuzzy Match against knownDB
+                match, score = process.extractOne(clean_cand, known_medicines)
+                
+                if score >= 70: # Lowered threshold further for better resilience (e.g. Metforrr=71)
+                    # Avoid duplicates
+                    if not any(m['name'] == match for m in medicines):
+                        # Look for dosage/freq in the full line
+                        dosage = dosage_pattern.search(line)
+                        freq = freq_pattern.search(line)
+                        
+                        medicines.append({
+                            "name": match,
+                            "dosage": dosage.group(0) if dosage else "Unknown",
+                            "frequency": freq.group(0) if freq else "Unknown"
+                        })
     return medicines
