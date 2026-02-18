@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 fade-in">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-slate-900">Patient Dashboard</h1>
+            <p class="text-slate-500">Manage prescriptions and assess health risks.</p>
+        </div>
+        <button onclick="document.getElementById('fileInput').click()"
+            class="bg-blue-600 text-white px-6 py-3 rounded-xl shadow-lg hover:bg-blue-700 font-bold flex items-center gap-2">
+            <i class="fa-solid fa-plus"></i> New Scan
+        </button>
+        <input type="file" id="fileInput" class="hidden" accept="image/*" onchange="handleUpload(this)">
+    </div>
+
+    <!-- Analysis Section (Hidden initially) -->
+    <div id="analysisSection" class="hidden space-y-8 mb-12">
+        <!-- 1. Medicines Detected -->
+        <div class="glass-panel p-6 rounded-xl">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-bold text-xl text-slate-800">Detected Medicines & Intelligence</h2>
+                <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">AI Analysis
+                    Active</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-slate-600">
+                    <thead class="bg-slate-50 text-slate-700 uppercase font-bold text-xs">
+                        <tr>
+                            <th class="px-6 py-3">Medicine</th>
+                            <th class="px-6 py-3">Dosage</th>
+                            <th class="px-6 py-3">Purpose & Warnings</th>
+                            <th class="px-6 py-3">Cost Analysis</th>
+                            <th class="px-6 py-3">Inferred Disease</th>
+                        </tr>
+                    </thead>
+                    <tbody id="medicineTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. Risk & Actions -->
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Symptom Input -->
+            <div class="glass-panel p-6 rounded-xl">
+                <h3 class="font-bold text-lg mb-4">Add Clinical Context</h3>
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="symptomName" placeholder="Symptom (e.g. Chest Pain)"
+                        class="flex-1 rounded-lg border-slate-300 shadow-sm p-2 border">
+                    <button onclick="addSymptom()" class="bg-slate-800 text-white px-4 rounded-lg">Add</button>
+                </div>
+                <div id="symptomList" class="space-y-2 mb-4 min-h-[50px]"></div>
+
+                <button onclick="analyzeRisk()"
+                    class="w-full bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-green-700">
+                    Calculate Final Risk
+                </button>
+            </div>
+
+            <!-- Risk Result -->
+            <div class="glass-panel p-6 rounded-xl relative overflow-hidden" id="riskPanel">
+                <div class="absolute inset-0 bg-slate-100 flex items-center justify-center z-10" id="riskOverlay">
+                    <p class="text-slate-400 font-medium">Complete assessment to see risk.</p>
+                </div>
+
+                <h3 class="font-bold text-lg mb-2">Cardiovascular Risk Estimate</h3>
+                <div class="flex items-end gap-2 mb-4">
+                    <span class="text-5xl font-black text-slate-900" id="riskScore">--%</span>
+                    <span class="text-xl font-bold mb-2" id="riskClass">--</span>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="p-3 bg-white rounded border border-slate-200">
+                        <strong class="block text-xs text-slate-500 uppercase">Recommendation</strong>
+                        <p id="riskRec" class="text-sm font-medium">--</p>
+                    </div>
+                    <div class="p-3 bg-white rounded border border-slate-200">
+                        <strong class="block text-xs text-slate-500 uppercase">Alerts</strong>
+                        <div id="riskAlerts" class="text-sm text-red-600">None</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+        <i class="fa-solid fa-file-medical text-6xl text-slate-200 mb-4"></i>
+        <h3 class="text-xl font-bold text-slate-400">No Active Analysis</h3>
+        <p class="text-slate-400">Upload a prescription to start.</p>
+    </div>
+
+</div>
+
+<script>
+    let currentMedicines = [];
+    let currentSymptoms = [];
+
+    async function handleUpload(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center';
+        overlay.innerHTML = '<div class="bg-white p-6 rounded-xl shadow-2xl flex flex-col items-center"><i class="fa-solid fa-spinner fa-spin text-4xl text-blue-600 mb-3"></i><p class="font-bold">Analyzing Prescription...</p><p class="text-xs text-slate-500">OCR + Fuzzy Match + OpenFDA + Cost Check</p></div>';
+        document.body.appendChild(overlay);
+
+        try {
+            const res = await fetch('/upload', { method: 'POST', body: formData });
+            const data = await res.json();
+
+            if (data.success) {
+                currentMedicines = data.medicines;
+                renderMedicines(data.medicines, data.inferred_diseases);
+                document.getElementById('analysisSection').classList.remove('hidden');
+                document.getElementById('emptyState').classList.add('hidden');
+            } else {
+                alert(data.error);
+            }
+        } catch (e) {
+            alert('Upload failed');
+        } finally {
+            document.body.removeChild(overlay);
+        }
+    }
+
+    function renderMedicines(meds, diseases) {
+        const tbody = document.getElementById('medicineTableBody');
+        tbody.innerHTML = meds.map(m => `
+        <tr class="bg-white border-b hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-4">
+                <div class="font-bold text-slate-800">${m.name}</div>
+                <div class="text-xs text-slate-400">OCR: ${m.original_name}</div>
+            </td>
+            <td class="px-6 py-4 text-xs font-mono bg-slate-50">
+                ${m.dosage} <br> ${m.frequency}
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-xs">
+                    <strong class="text-slate-700">Purpose:</strong> ${m.info.purpose} <br>
+                    <strong class="text-red-700 mt-1 block">Warnings:</strong> ${m.info.warnings}
+                </div>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-sm font-bold text-slate-700">${m.cost.currency}${m.cost.brand_price}</div>
+                ${m.cost.savings > 0 ? `
+                    <div class="text-xs text-green-600 font-bold">
+                        Save ${m.cost.currency}${m.cost.savings} with ${m.cost.generic_name}
+                    </div>
+                ` : '<div class="text-xs text-slate-400">Best price</div>'}
+            </td>
+            <td class="px-6 py-4">
+                ${diseases.includes(m.info.generic_name) ? `<span class="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">Inferred Condition</span>` : '<span class="text-slate-400">-</span>'}
+                <!-- Simple logic for now, using passed inferred list helps too -->
+            </td>
+        </tr>
+    `).join('');
+    }
+
+    function addSymptom() {
+        const name = document.getElementById('symptomName').value;
+        if (!name) return;
+        currentSymptoms.push({ name, severity: 5, duration: 1 });
+        document.getElementById('symptomName').value = '';
+        renderSymptoms();
+    }
+
+    function renderSymptoms() {
+        document.getElementById('symptomList').innerHTML = currentSymptoms.map((s, i) => `
+        <div class="flex justify-between items-center bg-white p-2 rounded border border-slate-200 text-sm">
+            <span>${s.name}</span>
+            <button onclick="currentSymptoms.splice(${i},1);renderSymptoms()" class="text-red-500"><i class="fa-solid fa-times"></i></button>
+        </div>
+    `).join('');
+    }
+
+    async function analyzeRisk() {
+        const payload = { medicines: currentMedicines, symptoms: currentSymptoms };
+        const res = await fetch('/analyze_risk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            document.getElementById('riskOverlay').classList.add('hidden');
+            document.getElementById('riskScore').innerText = data.report.risk_percentage + '%';
+            document.getElementById('riskClass').innerText = data.report.classification;
+            document.getElementById('riskRec').innerText = data.report.recommendation;
+
+            if (data.report.reasoning && data.report.reasoning.length > 0) {
+                document.getElementById('riskAlerts').innerHTML = data.report.reasoning.map(r => `<div>${r}</div>`).join('');
+            }
+        }
+    }
+</script>
+{% endblock %}

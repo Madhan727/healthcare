@@ -1,0 +1,40 @@
+{
+    "medicines": {
+        "Metformin": {
+            "disease": "Diabetes",
+            "type": "Antidiabetic"
+        },
+        "Amlodipine": {
+            "disease": "Hypertension",
+            "type": "Calcium Channel Blocker"
+        },
+        "Atorvastatin": {
+            "disease": "Hyperlipidemia",
+            "type": "Statin"
+        },
+        "Paracetamol": {
+            "disease": "Pain/Fever",
+            "type": "Analgesic"
+        },
+        "Amoxicillin": {
+            "disease": "Bacterial Infection",
+            "type": "Antibiotic"
+        },
+        "Lisinopril": {
+            "disease": "Hypertension",
+            "type": "ACE Inhibitor"
+        },
+        "Levothyroxine": {
+            "disease": "Hypothyroidism",
+            "type": "Hormone"
+        },
+        "Losartan": {
+            "disease": "Hypertension",
+            "type": "ARB"
+        },
+        "Omeprazole": {
+            "disease": "GERD",
+            "type": "PPI"
+        }
+    }
+}

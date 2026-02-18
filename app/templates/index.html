@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-6rem)]">
+    <!-- Sidebar: History -->
+    <aside class="w-64 bg-white border-r border-slate-200 hidden md:flex flex-col">
+        <div class="p-4 border-b border-slate-100">
+            <h3 class="font-bold text-slate-700 flex items-center">
+                <i class="fa-solid fa-clock-rotate-left mr-2 text-blue-500"></i> Recent Scans
+            </h3>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="historyList">
+            <!-- Populated by JS -->
+            <div class="animate-pulse flex space-x-4">
+                <div class="flex-1 space-y-2 py-1">
+                    <div class="h-2 bg-slate-200 rounded"></div>
+                    <div class="h-2 bg-slate-200 rounded w-5/6"></div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <div class="max-w-7xl mx-auto grid lg:grid-cols-12 gap-6">
+
+            <!-- LEFT COLUMN: Input & Context (7 cols) -->
+            <div class="lg:col-span-7 space-y-6">
+                <!-- 1. Upload Section -->
+                <div class="glass-panel p-6 rounded-xl">
+                    <h2 class="font-bold text-lg mb-4 text-slate-800">1. Prescription Source</h2>
+
+                    <form id="uploadForm" class="relative group">
+                        <div id="dropZone"
+                            class="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:bg-blue-50 hover:border-blue-500 transition-all cursor-pointer">
+                            <input type="file" id="fileInput" name="file" class="hidden" accept="image/*">
+                            <div class="space-y-2">
+                                <i
+                                    class="fa-solid fa-cloud-arrow-up text-3xl text-blue-400 group-hover:text-blue-600 transition-colors"></i>
+                                <p class="text-slate-600 font-medium">Drop prescription image here or click to upload
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Preview & OCR Loading Overlay -->
+                        <div id="previewArea"
+                            class="hidden mt-4 relative bg-slate-100 rounded-lg overflow-hidden min-h-[200px] flex items-center justify-center">
+                            <img id="imagePreview" src="" class="max-h-64 object-contain">
+
+                            <!-- OCR Spinner -->
+                            <div id="ocrSpinner"
+                                class="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center hidden">
+                                <i class="fa-solid fa-circle-notch fa-spin text-4xl text-blue-600 mb-3"></i>
+                                <p class="text-blue-800 font-bold animate-pulse">Smart OCR Extracting...</p>
+                                <p class="text-slate-500 text-xs mt-1">Enhancing text • Identifying medicines</p>
+                            </div>
+
+                            <button type="button" id="resetUploadBtn"
+                                class="absolute top-2 right-2 bg-white/90 text-slate-700 p-2 rounded-full shadow hover:text-red-600">
+                                <i class="fa-solid fa-times"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 2. Extracted Data (Editable) -->
+                <div class="glass-panel p-6 rounded-xl relative opacity-50 pointer-events-none transition-all"
+                    id="extractedSection">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="font-bold text-lg text-slate-800">2. Extracted Medicines</h2>
+                        <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full hidden"
+                            id="ocrSuccessBadge">
+                            <i class="fa-solid fa-check mr-1"></i> Scan Complete
+                        </span>
+                    </div>
+
+                    <div class="space-y-3" id="medicineList">
+                        <p class="text-slate-400 italic text-sm text-center py-4">Upload an image to detect medicines.
+                        </p>
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Inferred Conditions
+                        </p>
+                        <div id="diseaseTags" class="flex flex-wrap gap-2 min-h-[2rem]">
+                            <!-- Tags go here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Analysis & Action (5 cols) -->
+            <div class="lg:col-span-5 space-y-6">
+                <!-- 3. Symptom Input -->
+                <div class="glass-panel p-6 rounded-xl">
+                    <h2 class="font-bold text-lg mb-4 text-slate-800">3. Patient Symptoms</h2>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="symptomInput" placeholder="Add symptom (e.g. Headache)"
+                            class="flex-1 rounded-lg border-slate-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                        <button id="addSymptomBtn"
+                            class="bg-slate-800 text-white px-3 py-2 rounded-lg hover:bg-slate-700">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <div id="symptomList" class="space-y-2 max-h-[200px] overflow-y-auto mb-2">
+                        <div class="text-center text-slate-400 text-sm py-2">No symptoms added.</div>
+                    </div>
+                    <p class="text-xs text-slate-500 text-right">Adding symptoms updates risk in real-time.</p>
+                </div>
+
+                <!-- 4. Real-time Risk Gauge -->
+                <div class="glass-panel p-6 rounded-xl bg-gradient-to-br from-white to-slate-50">
+                    <h2 class="font-bold text-lg mb-4 text-slate-800">Live Risk Analysis</h2>
+
+                    <div class="flex items-center justify-center mb-6 relative">
+                        <!-- CSS Gauge -->
+                        <div class="w-40 h-20 overflow-hidden relative">
+                            <div
+                                class="w-40 h-40 rounded-full border-[12px] border-slate-200 border-b-transparent absolute top-0 left-0 rotate-45">
+                            </div>
+                            <div id="gaugeFill"
+                                class="w-40 h-40 rounded-full border-[12px] border-blue-500 border-b-transparent absolute top-0 left-0 rotate-45 transition-all duration-1000"
+                                style="clip-path: polygon(0 0, 100% 0, 100% 50%, 0 50%); transform: rotate(45deg);">
+                            </div> <!-- Dynamic rotation -->
+                        </div>
+                        <div class="absolute bottom-0 text-center">
+                            <span id="riskPercentage" class="text-3xl font-black text-slate-800">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <div id="riskLabel"
+                            class="inline-block px-3 py-1 rounded-full text-sm font-bold bg-slate-100 text-slate-500">
+                            Waiting for data...
+                        </div>
+                    </div>
+
+                    <div id="alertContainer" class="space-y-2 mb-4">
+                        <!-- Dynamic Alerts -->
+                    </div>
+
+                    <button id="saveAnalysisBtn"
+                        class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Save & View Full Report
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
