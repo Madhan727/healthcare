@@ -59,7 +59,10 @@ def parse_prescription(text):
     
     known_medicines = []
     try:
-        with open(os.path.join('data', 'medicines.json'), 'r') as f:
+        # data is now in app/data
+        base_dir = os.path.dirname(os.path.dirname(__file__)) # src/.. -> health root
+        json_path = os.path.join(base_dir, 'app', 'data', 'medicines.json')
+        with open(json_path, 'r') as f:
             data = json.load(f)
             known_medicines = list(data.get('medicines', {}).keys())
     except Exception:

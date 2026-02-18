@@ -16,6 +16,7 @@ class PatientRecord(db.Model):
     patient_name = db.Column(db.String(100), nullable=True) # Could be self or different
     medicines = db.Column(db.Text, nullable=True) # JSON String
     diseases = db.Column(db.Text, nullable=True) # JSON String
+    symptoms = db.Column(db.Text, nullable=True) # JSON String, New field
     risk_score = db.Column(db.Float, nullable=True)
     risk_class = db.Column(db.String(20), nullable=True)
     date_created = db.Column(db.DateTime, default=datetime.utcnow)
@@ -26,6 +27,7 @@ class PatientRecord(db.Model):
             "patient_name": self.patient_name,
             "medicines": json.loads(self.medicines) if self.medicines else [],
             "diseases": json.loads(self.diseases) if self.diseases else [],
+            "symptoms": json.loads(self.symptoms) if self.symptoms else [],
             "risk_score": self.risk_score,
             "risk_class": self.risk_class,
             "date": self.date_created.isoformat()
